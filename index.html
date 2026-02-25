@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gold Rush Trading Simulator</title>
+
+  <!-- ===== Play.fun SDK ===== -->
+  <meta name="x-ogp-key" content="YOUR_API_KEY_HERE" />
+  <script src="https://sdk.play.fun"></script>
+
+  <style>
+    :root {
+      --bg: #0a0e17;
+      --panel: #111827;
+      --border: #1e293b;
+      --gold: #f59e0b;
+      --gold-dim: #92400e;
+      --green: #22c55e;
+      --red: #ef4444;
+      --text: #e5e7eb;
+      --muted: #6b7280;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 8px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 8px 0 4px;
+    }
+
+    header h1 {
+      font-size: 22px;
+      color: var(--gold);
+      text-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+    }
+
+    #app {
+      width: 100%;
+      max-width: 520px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+
+    /* ── Account Bar ── */
+    #account-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    #account-bar .label { color: var(--muted); }
+    #account-bar .value { font-weight: 700; font-size: 15px; }
+    .pnl-positive { color: var(--green); }
+    .pnl-negative { color: var(--red); }
+
+    /* ── Price Display ── */
+    #price-section { text-align: center; padding: 10px; }
+    #price-section .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+    #current-price {
+      font-size: 36px;
+      font-weight: 800;
+      color: var(--gold);
+      text-shadow: 0 0 30px rgba(245, 158, 11, 0.25);
+      margin: 2px 0;
+    }
+    #price-change { font-size: 13px; font-weight: 600; }
+
+    /* ── Chart ── */
+    #chart-container { padding: 6px; }
+    canvas#chart { width: 100%; height: 180px; border-radius: 6px; background: #0d1117; }
+
+    /* ── Position Info ── */
+    #position-info {
+      display: none;
+      font-size: 12px;
+      gap: 8px;
+    }
+
+    #position-info.active { display: flex; flex-wrap: wrap; justify-content: space-between; }
+    .pos-item { display: flex; flex-direction: column; align-items: center; }
+    .pos-item .label { color: var(--muted); font-size: 10px; text-transform: uppercase; }
+    .pos-item .value { font-weight: 700; font-size: 14px; }
+
+    /* ── Controls ── */
+    #controls { display: flex; flex-direction: column; gap: 8px; }
+    #leverage-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+    #leverage-row label { color: var(--muted); }
+    #leverage-slider { flex: 1; accent-color: var(--gold); }
+    #leverage-val { font-weight: 700; color: var(--gold); min-width: 30px; }
+
+    #size-row { display: flex; align-items: center; gap: 8px; }
+    #size-row label { color: var(--muted); font-size: 12px; }
+    #size-input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 14px;
+    }
+    #size-input:focus { outline: none; border-color: var(--gold); }
+
+    .pct-btns { display: flex; gap: 4px; }
+    .pct-btn {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .pct-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+    #btn-row { display: flex; gap: 8px; }
+    .trade-btn {
+      flex: 1;
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .trade-btn:active { transform: scale(0.97); }
+
+    #btn-long {
+      background: linear-gradient(135deg, #16a34a, #15803d);
+      color: white;
+      box-shadow: 0 4px 15px rgba(34, 197, 94, 0.3);
+    }
+    #btn-long:hover { box-shadow: 0 4px 25px rgba(34, 197, 94, 0.5); }
+
+    #btn-short {
+      background: linear-gradient(135deg, #dc2626, #b91c1c);
+      color: white;
+      box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+    }
+    #btn-short:hover { box-shadow: 0 4px 25px rgba(239, 68, 68, 0.5); }
+
+    #btn-close {
+      display: none;
+      flex: 1;
+      padding: 14px;
+      border: 2px solid var(--gold);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--gold);
+      font-family: inherit;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* ── Trade Log ── */
+    #log-section h3 { font-size: 13px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
+    #trade-log {
+      max-height: 120px;
+      overflow-y: auto;
+      font-size: 11px;
+      line-height: 1.8;
+    }
+    #trade-log::-webkit-scrollbar { width: 4px; }
+    #trade-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .log-win { color: var(--green); }
+    .log-loss { color: var(--red); }
+    .log-open { color: var(--gold); }
+
+    /* ── Game Over Overlay ── */
+    #game-over {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 14, 23, 0.92);
+      z-index: 100;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    #game-over.active { display: flex; }
+    #game-over h2 { font-size: 28px; color: var(--red); margin-bottom: 8px; }
+    #game-over .final-stats { color: var(--muted); font-size: 14px; margin-bottom: 16px; line-height: 1.8; }
+    #game-over .final-stats span { color: var(--text); font-weight: 700; }
+    #restart-btn {
+      padding: 12px 32px;
+      background: var(--gold);
+      color: var(--bg);
+      border: none;
+      border-radius: 999px;
+      font-family: inherit;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>⛏ Gold Rush Trading Sim</h1>
+</header>
+
+<div id="app">
+
+  <!-- Account -->
+  <div class="card" id="account-bar">
+    <div><span class="label">Balance </span><span class="value" id="balance">$10,000.00</span></div>
+    <div><span class="label">P&L </span><span class="value" id="total-pnl">$0.00</span></div>
+    <div><span class="label">Trades </span><span class="value" id="trade-count">0</span></div>
+  </div>
+
+  <!-- Price -->
+  <div class="card" id="price-section">
+    <div class="label">Fake Gold (fXAU) / USD</div>
+    <div id="current-price">$1,920.00</div>
+    <div id="price-change">+0.00 (0.00%)</div>
+  </div>
+
+  <!-- Chart -->
+  <div class="card" id="chart-container">
+    <canvas id="chart" width="492" height="180"></canvas>
+  </div>
+
+  <!-- Open Position -->
+  <div class="card" id="position-info">
+    <div class="pos-item"><span class="label">Side</span><span class="value" id="pos-side">—</span></div>
+    <div class="pos-item"><span class="label">Entry</span><span class="value" id="pos-entry">—</span></div>
+    <div class="pos-item"><span class="label">Size</span><span class="value" id="pos-size">—</span></div>
+    <div class="pos-item"><span class="label">Leverage</span><span class="value" id="pos-lev">—</span></div>
+    <div class="pos-item"><span class="label">Unrealized P&L</span><span class="value" id="pos-pnl">—</span></div>
+    <div class="pos-item"><span class="label">Liq. Price</span><span class="value" id="pos-liq">—</span></div>
+  </div>
+
+  <!-- Controls -->
+  <div class="card" id="controls">
+    <div id="leverage-row">
+      <label>Leverage</label>
+      <input type="range" id="leverage-slider" min="1" max="50" value="5" />
+      <span id="leverage-val">5x</span>
+    </div>
+    <div id="size-row">
+      <label>Size $</label>
+      <input type="number" id="size-input" value="1000" min="1" step="1" />
+      <div class="pct-btns">
+        <button class="pct-btn" data-pct="25">25%</button>
+        <button class="pct-btn" data-pct="50">50%</button>
+        <button class="pct-btn" data-pct="100">MAX</button>
+      </div>
+    </div>
+    <div id="btn-row">
+      <button class="trade-btn" id="btn-long">⬆ Long</button>
+      <button class="trade-btn" id="btn-short">⬇ Short</button>
+      <button id="btn-close">✕ Close Position</button>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="card" id="log-section">
+    <h3>Trade History</h3>
+    <div id="trade-log"><em style="color:var(--muted)">No trades yet…</em></div>
+  </div>
+</div>
+
+<!-- Game Over -->
+<div id="game-over">
+  <h2>💀 LIQUIDATED</h2>
+  <div class="final-stats">
+    <div>You survived <span id="go-trades">0</span> trades</div>
+    <div>Peak balance: <span id="go-peak">$10,000</span></div>
+    <div>Final P&L: <span id="go-pnl">-$10,000</span></div>
+  </div>
+  <button id="restart-btn">Play Again</button>
+</div>
+
+<script>
+// ════════════════════════════════════════
+//  Play.fun SDK init
+// ════════════════════════════════════════
+const ogp = new OpenGameSDK({ ui: { usePointsWidget: true, theme: 'dark' } });
+let sdkReady = false;
+
+(async () => {
+  try {
+    await ogp.init({ gameId: 'YOUR_GAME_ID_HERE' });
+    sdkReady = true;
+  } catch (e) { console.warn('Play.fun SDK init failed – running standalone', e); }
+})();
+
+// ════════════════════════════════════════
+//  State
+// ════════════════════════════════════════
+const STARTING_BALANCE = 10000;
+let balance = STARTING_BALANCE;
+let peakBalance = balance;
+let totalPnl = 0;
+let tradeCount = 0;
+let pointsAccum = 0;
+
+// Price engine
+let price = 1920;
+let priceHistory = [];
+const MAX_HIST = 200;
+let prevPrice = price;
+let trend = 0;
+let volatility = 0.0012;
+
+// Position
+let position = null; // { side: 'long'|'short', entry, size, leverage, liqPrice }
+
+// DOM
+const $balance    = document.getElementById('balance');
+const $pnl        = document.getElementById('total-pnl');
+const $tradeCount = document.getElementById('trade-count');
+const $price      = document.getElementById('current-price');
+const $change     = document.getElementById('price-change');
+const $posInfo    = document.getElementById('position-info');
+const $posSide    = document.getElementById('pos-side');
+const $posEntry   = document.getElementById('pos-entry');
+const $posSize    = document.getElementById('pos-size');
+const $posLev     = document.getElementById('pos-lev');
+const $posPnl     = document.getElementById('pos-pnl');
+const $posLiq     = document.getElementById('pos-liq');
+const $levSlider  = document.getElementById('leverage-slider');
+const $levVal     = document.getElementById('leverage-val');
+const $sizeInput  = document.getElementById('size-input');
+const $btnLong    = document.getElementById('btn-long');
+const $btnShort   = document.getElementById('btn-short');
+const $btnClose   = document.getElementById('btn-close');
+const $log        = document.getElementById('trade-log');
+const $gameOver   = document.getElementById('game-over');
+const canvas      = document.getElementById('chart');
+const ctx         = canvas.getContext('2d');
+
+// ════════════════════════════════════════
+//  Price Engine – random walk with mean-reverting drift + jumps
+// ════════════════════════════════════════
+function tickPrice() {
+  prevPrice = price;
+
+  // Slowly shift trend
+  trend += (Math.random() - 0.5) * 0.0003;
+  trend *= 0.995; // mean-revert trend
+
+  // Occasional volatility spikes
+  if (Math.random() < 0.02) volatility = 0.002 + Math.random() * 0.004;
+  else volatility *= 0.998;
+  if (volatility < 0.0008) volatility = 0.0008;
+
+  // News event / jump
+  let jump = 0;
+  if (Math.random() < 0.005) jump = (Math.random() - 0.5) * price * 0.015;
+
+  const noise = (Math.random() - 0.5) * 2 * volatility * price;
+  price += trend * price + noise + jump;
+
+  // Clamp to reasonable range
+  if (price < 800) price = 800 + Math.random() * 20;
+  if (price > 3200) price = 3200 - Math.random() * 20;
+
+  priceHistory.push(price);
+  if (priceHistory.length > MAX_HIST) priceHistory.shift();
+}
+
+// ════════════════════════════════════════
+//  Chart Renderer
+// ════════════════════════════════════════
+function drawChart() {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  if (priceHistory.length < 2) return;
+
+  const min = Math.min(...priceHistory) - 5;
+  const max = Math.max(...priceHistory) + 5;
+  const range = max - min || 1;
+
+  // Grid lines
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i < 5; i++) {
+    const y = (H / 5) * i;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  // Price labels
+  ctx.fillStyle = '#4b5563';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const val = max - (range * i / 4);
+    const y = (H / 4) * i;
+    ctx.fillText('$' + val.toFixed(0), W - 4, y + 12);
+  }
+
+  // Price line
+  const toX = (i) => (i / (MAX_HIST - 1)) * W;
+  const toY = (v) => H - ((v - min) / range) * H;
+
+  const startIdx = MAX_HIST - priceHistory.length;
+
+  // gradient fill
+  const lastY = toY(priceHistory[priceHistory.length - 1]);
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  const lineColor = price >= prevPrice ? '#22c55e' : '#ef4444';
+  grad.addColorStop(0, lineColor + '30');
+  grad.addColorStop(1, lineColor + '00');
+
+  ctx.beginPath();
+  ctx.moveTo(toX(startIdx), H);
+  for (let i = 0; i < priceHistory.length; i++) {
+    ctx.lineTo(toX(startIdx + i), toY(priceHistory[i]));
+  }
+  ctx.lineTo(toX(startIdx + priceHistory.length - 1), H);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // line
+  ctx.beginPath();
+  for (let i = 0; i < priceHistory.length; i++) {
+    const x = toX(startIdx + i), y = toY(priceHistory[i]);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = lineColor;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Entry price line
+  if (position) {
+    const ey = toY(position.entry);
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = '#f59e0b88';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, ey); ctx.lineTo(W, ey); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#f59e0b';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('ENTRY $' + position.entry.toFixed(2), 4, ey - 4);
+
+    // Liq price line
+    const ly = toY(position.liqPrice);
+    if (ly >= 0 && ly <= H) {
+      ctx.setLineDash([2, 3]);
+      ctx.strokeStyle = '#ef444488';
+      ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(W, ly); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#ef4444';
+      ctx.fillText('LIQ $' + position.liqPrice.toFixed(2), 4, ly - 4);
+    }
+  }
+
+  // Current price dot
+  const cx = toX(MAX_HIST - 1);
+  const cy = toY(price);
+  ctx.beginPath();
+  ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+  ctx.fillStyle = lineColor;
+  ctx.fill();
+}
+
+// ════════════════════════════════════════
+//  Position P&L
+// ════════════════════════════════════════
+function calcPnl() {
+  if (!position) return 0;
+  const dir = position.side === 'long' ? 1 : -1;
+  const pctMove = (price - position.entry) / position.entry;
+  return dir * pctMove * position.size * position.leverage;
+}
+
+function checkLiquidation() {
+  if (!position) return;
+  if (position.side === 'long' && price <= position.liqPrice) liquidate();
+  if (position.side === 'short' && price >= position.liqPrice) liquidate();
+}
+
+function liquidate() {
+  const loss = -position.size;
+  balance += loss;
+  totalPnl += loss;
+  tradeCount++;
+  logTrade(position.side, position.entry, price, loss, true);
+  position = null;
+  updatePositionUI();
+
+  if (balance <= 0) {
+    balance = 0;
+    endGameSequence();
+  }
+}
+
+// ════════════════════════════════════════
+//  Open / Close trades
+// ════════════════════════════════════════
+function openPosition(side) {
+  if (position) return; // already in a trade
+  const size = parseFloat($sizeInput.value);
+  if (isNaN(size) || size <= 0 || size > balance) return;
+
+  const leverage = parseInt($levSlider.value);
+  let liqPrice;
+  if (side === 'long') {
+    liqPrice = price * (1 - 0.95 / leverage);
+  } else {
+    liqPrice = price * (1 + 0.95 / leverage);
+  }
+
+  position = { side, entry: price, size, leverage, liqPrice };
+  balance -= size; // margin locked
+
+  logOpen(side, price, size, leverage);
+  updatePositionUI();
+}
+
+function closePosition() {
+  if (!position) return;
+  const pnl = calcPnl();
+  const returned = position.size + pnl;
+  balance += Math.max(0, returned);
+  totalPnl += pnl;
+  tradeCount++;
+
+  // Play.fun points: award points for profitable trades
+  if (pnl > 0) {
+    const pts = Math.floor(pnl / 10);
+    if (pts > 0) awardPoints(pts);
+  }
+  // Also award 1 point per trade for participation
+  awardPoints(1);
+
+  logTrade(position.side, position.entry, price, pnl, false);
+  position = null;
+  updatePositionUI();
+
+  if (balance <= 0) {
+    balance = 0;
+    endGameSequence();
+  }
+}
+
+async function awardPoints(pts) {
+  pointsAccum += pts;
+  if (sdkReady && pointsAccum >= 1) {
+    const send = Math.floor(pointsAccum);
+    pointsAccum -= send;
+    try { await ogp.addPoints(send); } catch (e) { console.warn('addPoints', e); }
+  }
+}
+
+// ════════════════════════════════════════
+//  UI Updates
+// ════════════════════════════════════════
+function fmt(n) { return (n < 0 ? '-$' : '$') + Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+function updateHUD() {
+  const unrealized = calcPnl();
+  const equity = balance + (position ? position.size + unrealized : 0);
+
+  $balance.textContent = fmt(equity);
+  $pnl.textContent = fmt(totalPnl + unrealized);
+  $pnl.className = 'value ' + ((totalPnl + unrealized) >= 0 ? 'pnl-positive' : 'pnl-negative');
+  $tradeCount.textContent = tradeCount;
+
+  if (equity > peakBalance) peakBalance = equity;
+
+  // Price
+  $price.textContent = '$' + price.toFixed(2);
+  const diff = price - prevPrice;
+  const pct = ((price - 1920) / 1920 * 100);
+  $change.textContent = (diff >= 0 ? '+' : '') + diff.toFixed(2) + ' (' + pct.toFixed(2) + '%)';
+  $change.style.color = diff >= 0 ? 'var(--green)' : 'var(--red)';
+
+  // Position
+  if (position) {
+    $posPnl.textContent = fmt(unrealized);
+    $posPnl.style.color = unrealized >= 0 ? 'var(--green)' : 'var(--red)';
+  }
+}
+
+function updatePositionUI() {
+  if (position) {
+    $posInfo.classList.add('active');
+    $posSide.textContent = position.side.toUpperCase();
+    $posSide.style.color = position.side === 'long' ? 'var(--green)' : 'var(--red)';
+    $posEntry.textContent = '$' + position.entry.toFixed(2);
+    $posSize.textContent = fmt(position.size);
+    $posLev.textContent = position.leverage + 'x';
+    $posLiq.textContent = '$' + position.liqPrice.toFixed(2);
+    $posLiq.style.color = 'var(--red)';
+    $btnLong.style.display = 'none';
+    $btnShort.style.display = 'none';
+    $btnClose.style.display = 'block';
+  } else {
+    $posInfo.classList.remove('active');
+    $btnLong.style.display = 'block';
+    $btnShort.style.display = 'block';
+    $btnClose.style.display = 'none';
+  }
+}
+
+// ════════════════════════════════════════
+//  Trade Log
+// ════════════════════════════════════════
+let firstLog = true;
+function logOpen(side, entry, size, lev) {
+  if (firstLog) { $log.innerHTML = ''; firstLog = false; }
+  const el = document.createElement('div');
+  el.className = 'log-open';
+  el.textContent = '▶ OPEN ' + side.toUpperCase() + '  $' + entry.toFixed(2) + '  size ' + fmt(size) + '  ' + lev + 'x';
+  $log.prepend(el);
+}
+
+function logTrade(side, entry, exit, pnl, liq) {
+  const el = document.createElement('div');
+  el.className = pnl >= 0 ? 'log-win' : 'log-loss';
+  const tag = liq ? '✕ LIQ' : '◼ CLOSE';
+  el.textContent = tag + ' ' + side.toUpperCase() + '  ' + fmt(entry) + ' → ' + fmt(exit) + '  P&L ' + fmt(pnl);
+  $log.prepend(el);
+}
+
+// ════════════════════════════════════════
+//  Game Over
+// ════════════════════════════════════════
+async function endGameSequence() {
+  $gameOver.classList.add('active');
+  document.getElementById('go-trades').textContent = tradeCount;
+  document.getElementById('go-peak').textContent = fmt(peakBalance);
+  document.getElementById('go-pnl').textContent = fmt(totalPnl);
+
+  // Send final score to Play.fun
+  if (sdkReady) {
+    try { await ogp.endGame(); } catch (e) { console.warn('endGame', e); }
+  }
+}
+
+function restart() {
+  balance = STARTING_BALANCE;
+  peakBalance = balance;
+  totalPnl = 0;
+  tradeCount = 0;
+  pointsAccum = 0;
+  position = null;
+  price = 1920;
+  priceHistory = [];
+  trend = 0;
+  volatility = 0.0012;
+  firstLog = true;
+  $log.innerHTML = '<em style="color:var(--muted)">No trades yet…</em>';
+  $gameOver.classList.remove('active');
+  updatePositionUI();
+}
+
+// ════════════════════════════════════════
+//  Event Listeners
+// ════════════════════════════════════════
+$levSlider.addEventListener('input', () => { $levVal.textContent = $levSlider.value + 'x'; });
+$btnLong.addEventListener('click', () => openPosition('long'));
+$btnShort.addEventListener('click', () => openPosition('short'));
+$btnClose.addEventListener('click', closePosition);
+document.getElementById('restart-btn').addEventListener('click', restart);
+
+document.querySelectorAll('.pct-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const pct = parseInt(btn.dataset.pct);
+    $sizeInput.value = Math.floor(balance * pct / 100);
+  });
+});
+
+// Keyboard shortcuts
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'KeyL' && !position) openPosition('long');
+  if (e.code === 'KeyS' && !position) openPosition('short');
+  if (e.code === 'KeyC' && position) closePosition();
+});
+
+// ════════════════════════════════════════
+//  Game Loop – tick every 200ms
+// ════════════════════════════════════════
+setInterval(() => {
+  tickPrice();
+  checkLiquidation();
+  updateHUD();
+  drawChart();
+}, 200);
+
+// Seed initial price history
+for (let i = 0; i < 50; i++) tickPrice();
+updateHUD();
+drawChart();
+</script>
+
+</body>
+</html>
